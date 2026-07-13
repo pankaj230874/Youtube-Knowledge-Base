@@ -1,0 +1,210 @@
+{
+  "name": "3 - AI Chatbot",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "options": {
+          "inputPlaceholder": "Ask a question about the video library...",
+          "subtitle": "Ask me anything about the indexed videos",
+          "title": "YouTube Knowledge Base",
+          "responseMode": "lastNode"
+        }
+      },
+      "id": "644adc12-cee9-43e4-a313-fa5cb5920735",
+      "name": "Chat Message Received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "6c55c005-5a32-46ee-89fa-73b80efe18f1"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "0u1a55ytc4ZdO96D",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/0u1a55ytc4ZdO96D",
+          "cachedResultName": "2 - Knowledge Retrieval"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "matchCount": 5,
+            "question": "={{ $json.chatInput }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "question",
+              "displayName": "question",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "videoIdFilter",
+              "displayName": "videoIdFilter",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "matchCount",
+              "displayName": "matchCount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "b9feaa1d-c981-48c3-b0a3-4b3816c691cf",
+      "name": "Retrieve Relevant Chunks",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        272,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst item = $input.first().json;\nconst question = item.question;\nconst contextText = item.contextText || '';\nconst hasContext = (item.chunks || []).length > 0;\n\nconst systemInstruction = [\n  'You are a helpful assistant answering questions using ONLY the provided video transcript excerpts.',\n  'Always cite the video title and timestamp for every claim, in the form (Video Title @ MM:SS).',\n  'If the provided context does not contain the answer, say: \"I do not have information on that in the indexed videos.\" Do not guess.'\n].join(' ');\n\nconst userPrompt = hasContext\n  ? 'Context from indexed videos:\\n\\n' + contextText + '\\n\\nQuestion: ' + question\n  : 'No relevant context was found for this question: ' + question;\n\nreturn [{ json: { ...item, systemInstruction, userPrompt } }];\n"
+      },
+      "id": "117da440-b8a5-4bbf-9355-31793aa46e2e",
+      "name": "Build Grounded Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"system_instruction\": { \"parts\": [ { \"text\": $json.systemInstruction } ] }, \"contents\": [ { \"role\": \"user\", \"parts\": [ { \"text\": $json.userPrompt } ] } ], \"generationConfig\": { \"temperature\": 0.2 } } }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "d989272b-f8df-4aec-9db1-803421982670",
+      "name": "Generate Answer (Gemini Flash-Lite)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        784,
+        0
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "eqTFnTopqFTeoGDe",
+          "name": "PP_Gemini_0807"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst geminiResponse = $input.first().json;\nconst retrieval = $('Retrieve Relevant Chunks').first().json;\n\nconst answerText =\n  (geminiResponse.candidates &&\n    geminiResponse.candidates[0] &&\n    geminiResponse.candidates[0].content &&\n    geminiResponse.candidates[0].content.parts &&\n    geminiResponse.candidates[0].content.parts[0] &&\n    geminiResponse.candidates[0].content.parts[0].text) ||\n  'Sorry, I was unable to generate an answer just now.';\n\nconst citations = (retrieval.chunks || []).map(c => ({\n  videoTitle: c.videoTitle,\n  timestampSeconds: c.startSeconds,\n  url: c.youtubeDeepLink\n}));\n\nreturn [{ json: { output: answerText, citations } }];\n"
+      },
+      "id": "5715308d-45ed-4781-b061-ab513b3ac991",
+      "name": "Parse Response + Attach Citations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Chat Message Received": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Relevant Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Relevant Chunks": {
+      "main": [
+        [
+          {
+            "node": "Build Grounded Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Grounded Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Answer (Gemini Flash-Lite)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Answer (Gemini Flash-Lite)": {
+      "main": [
+        [
+          {
+            "node": "Parse Response + Attach Citations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "kMXNNpS64WCuqRaz",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "268653ca-37d2-4f37-9be9-33d43ca998ae",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "e99e0d1157c9445a053edb1d8bcb3c19869f806f2b50808813faa4f314de9dd4"
+  },
+  "id": "g6zsIhHOsDIycNo7",
+  "tags": []
+}

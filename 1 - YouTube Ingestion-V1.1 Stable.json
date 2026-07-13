@@ -1,0 +1,1101 @@
+{
+  "name": "1 - YouTube Ingestion-V1.1 Stable",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "faff736f-2b96-48cd-be08-cceebaf3079d",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo",
+          "mode": "list",
+          "cachedResultName": "PP_0507_youtube_knowledge_base",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 28530458,
+          "mode": "list",
+          "cachedResultName": "youtube_knowledge_base.csv",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo/edit#gid=28530458"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Transcript Status",
+              "lookupValue": "Pending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "eaf6e7d1-1246-40d8-9a5b-a4474ca8fb57",
+      "name": "Read Pending Videos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "videoId",
+              "type": "string",
+              "value": "={{ ($json[\"Video URL\"].match(/(?:v=|youtu\\.be\\/|shorts\\/)([a-zA-Z0-9_-]{11})/) || [])[1] || \"\" }}"
+            },
+            {
+              "id": "a2",
+              "name": "videoUrl",
+              "type": "string",
+              "value": "={{ $json[\"Video URL\"] }}"
+            },
+            {
+              "id": "a3",
+              "name": "priority",
+              "type": "string",
+              "value": "={{ $json[\"Priority\"] || \"3\" }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "4febcefc-7f2b-46ab-99f7-19771bd5a313",
+      "name": "Extract Video ID",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        0
+      ],
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "url": "=https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v={{ $json.videoId }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "afe4ebdc-c65e-483c-a4ed-d0103f9c4e18",
+      "name": "Fetch oEmbed Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        896,
+        0
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "m1",
+              "name": "videoTitle",
+              "type": "string",
+              "value": "={{ $json.title || \"Untitled Video\" }}"
+            },
+            {
+              "id": "m2",
+              "name": "channelName",
+              "type": "string",
+              "value": "={{ $json.author_name || \"Unknown Channel\" }}"
+            },
+            {
+              "id": "m3",
+              "name": "videoId",
+              "type": "string",
+              "value": "={{ $(\"Extract Video ID\").item.json.videoId }}"
+            },
+            {
+              "id": "m4",
+              "name": "videoUrl",
+              "type": "string",
+              "value": "={{ $(\"Extract Video ID\").item.json.videoUrl }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "f88f11d9-7d8d-44b3-b307-55626acc6bf3",
+      "name": "Normalize Metadata",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO videos (\n    video_id,\n    title,\n    channel_name,\n    url,\n    duration_seconds,\n    transcript_source,\n    status\n)\nVALUES ($1, $2, $3, $4, $5, $6, $7)\nON CONFLICT (video_id)\nDO UPDATE SET\n    title = EXCLUDED.title,\n    channel_name = EXCLUDED.channel_name,\n    url = EXCLUDED.url,\n    duration_seconds = EXCLUDED.duration_seconds,\n    transcript_source = EXCLUDED.transcript_source,\n    status = EXCLUDED.status,\n    updated_at = NOW()\nRETURNING id, video_id;",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.metadata?.id || $('Extract Video ID').item.json.videoId,\n  $json.metadata?.title || 'Untitled Video',\n  $json.metadata?.channel || 'Unknown Channel',\n  $json.metadata?.url || $('Extract Video ID').item.json.videoUrl,\n  $json.metadata?.duration || null,\n  $json.transcriptSource || 'none',\n  $json.transcriptRaw ? 'fetching' : 'failed'\n] }}",
+          "replaceEmptyStrings": false
+        }
+      },
+      "id": "2f47b425-a434-4bdb-98b2-a65378ed4ea8",
+      "name": "Upsert Video Row",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        16,
+        592
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Parse Apify Result').item.json.transcriptRaw }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "rightValue": "",
+              "id": "7871a0be-ea3a-4b9d-b6fc-cb72fd0b3ad6"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1d82db74-1cf8-421e-8eaa-a7e324d49ac5",
+      "name": "Transcript Obtained?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        640,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function stripXmlTimedtext(xml) {\n    const cues = [];\n    const re = /<text start=\"([\\d.]+)\" dur=\"([\\d.]+)\"[^>]*>([\\s\\S]*?)<\\/text>/g;\n\n    let m;\n\n    while ((m = re.exec(xml)) !== null) {\n\n        const start = parseFloat(m[1]);\n        const dur = parseFloat(m[2]);\n\n        const text = m[3]\n            .replace(/&amp;/g, \"&\")\n            .replace(/&#39;/g, \"'\")\n            .replace(/&quot;/g, '\"')\n            .replace(/<[^>]+>/g, \"\")\n            .trim();\n\n        if (text) {\n            cues.push({\n                start,\n                end: start + dur,\n                text\n            });\n        }\n    }\n\n    return cues;\n}\n\nconst output = [];\n\nfor (const item of $input.all()) {\n\n    const json = item.json;\n\n    // Metadata may or may not exist\n    const metadata = json.metadata ?? {};\n\n    // -----------------------------\n    // 1. Prefer transcript_json\n    // -----------------------------\n\n    let cues = [];\n\n    if (Array.isArray(metadata.transcript_json) && metadata.transcript_json.length) {\n\n        cues = metadata.transcript_json;\n\n    } else if (Array.isArray(json.transcript_json) && json.transcript_json.length) {\n\n        cues = json.transcript_json;\n\n    } else {\n\n        // -----------------------------\n        // 2. Otherwise use transcript text\n        // -----------------------------\n\n        const transcript =\n            metadata.transcriptRaw ??\n            metadata.transcript_text ??\n            metadata.transcript_llm ??\n            json.transcriptRaw ??\n            json.transcript_text ??\n            json.transcript_llm ??\n            \"\";\n\n        const format =\n            metadata.transcriptFormat ??\n            json.transcriptFormat ??\n            \"\";\n\n        if (format === \"xml\") {\n\n            cues = stripXmlTimedtext(transcript);\n\n        } else {\n\n            cues = [{\n                start: 0,\n                end: 0,\n                text: transcript\n            }];\n\n        }\n    }\n\n    const cleanedFullText = cues\n        .map(c => c.text)\n        .join(\" \")\n        .replace(/\\s+/g, \" \")\n        .trim();\n\n    output.push({\n        json: {\n            ...json,\n            metadata,\n            cues,\n            cleanedFullText\n        }\n    });\n\n}\n\nreturn output;"
+      },
+      "id": "60c54f79-63ef-4698-9479-e6a4c89ff7d4",
+      "name": "Clean Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst TARGET_TOKENS = 500;\nconst OVERLAP_RATIO = 0.15;\nconst WORDS_PER_TOKEN = 0.75;\n\nfunction wordsToTokens(words) { return Math.round(words.length / WORDS_PER_TOKEN); }\n\nconst out = [];\nfor (const item of $input.all()) {\n  const json = item.json;\n  const cues = json.cues || [];\n  const words = json.cleanedFullText.split(/\\s+/).filter(Boolean);\n  if (words.length === 0) continue;\n\n  const targetWords = Math.round(TARGET_TOKENS * WORDS_PER_TOKEN);\n  const overlapWords = Math.round(targetWords * OVERLAP_RATIO);\n  const step = Math.max(1, targetWords - overlapWords);\n\n  const wordTimes = [];\n  for (const cue of cues) {\n    const cueWords = cue.text.split(/\\s+/).filter(Boolean);\n    for (let i = 0; i < cueWords.length; i++) {\n      const frac = cueWords.length > 1 ? i / (cueWords.length - 1) : 0;\n      wordTimes.push(cue.start + frac * (cue.end - cue.start));\n    }\n  }\n\n  let chunkIndex = 0;\n  for (let i = 0; i < words.length; i += step) {\n    const slice = words.slice(i, i + targetWords);\n    if (slice.length < 20 && chunkIndex > 0) break;\n    const content = slice.join(' ');\n    const startSeconds = wordTimes[i] ?? 0;\n    const endIdx = Math.min(i + slice.length - 1, wordTimes.length - 1);\n    const endSeconds = wordTimes[endIdx] ?? startSeconds;\n    out.push({\n      json: {\n        videoRowId: json.id,\n        videoId: json.metadata.id,\n        chunkIndex: chunkIndex,\n        content,\n        startSeconds,\n        endSeconds,\n        tokenCount: wordsToTokens(slice)\n      }\n    });\n    chunkIndex++;\n    if (i + targetWords >= words.length) break;\n  }\n}\nreturn out;\n"
+      },
+      "id": "bb1218af-a083-4477-8060-66e26fe8335f",
+      "name": "Chunk Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"models/gemini-embedding-001\",\n  \"content\": {\n    \"parts\": [\n      {\n        \"text\": \"{{ $json.content }}\"\n      }\n    ]\n  },\n  \"outputDimensionality\": 768\n}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1200
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "id": "aac10454-4656-4969-a57e-134da88e019a",
+      "name": "Generate Chunk Embedding (Gemini)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1440,
+        256
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "eqTFnTopqFTeoGDe",
+          "name": "PP_Gemini_0807"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into chunks (video_id, chunk_index, content, start_seconds, end_seconds, token_count, embedding) values ($1, $2, $3, $4, $5, $6, $7::vector) on conflict do nothing;",
+        "options": {
+          "queryBatching": "single",
+          "queryReplacement": "={{\n[\n  $(\"Chunk Transcript\").item.json.videoRowId,\n  $(\"Chunk Transcript\").item.json.chunkIndex,\n  $(\"Chunk Transcript\").item.json.content,\n  $(\"Chunk Transcript\").item.json.startSeconds,\n  $(\"Chunk Transcript\").item.json.endSeconds,\n  $(\"Chunk Transcript\").item.json.tokenCount,\n  \"[\" + $json.embedding.values.join(\",\") + \"]\"\n]\n}}"
+        }
+      },
+      "id": "989ba20f-5526-42ed-81b4-52c1349e547b",
+      "name": "Insert Chunk",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1664,
+        256
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "insertedChunks",
+        "options": {}
+      },
+      "id": "ba85c0b3-30bd-48fb-b23b-4cff592a1d47",
+      "name": "Aggregate Chunk Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1888,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s1",
+              "name": "Video ID",
+              "type": "string",
+              "value": "={{ $(\"Extract Video ID\").item.json.videoId }}"
+            },
+            {
+              "id": "s2",
+              "name": "Transcript Status",
+              "type": "string",
+              "value": "Embedded"
+            },
+            {
+              "id": "s3",
+              "name": "Transcript Source",
+              "type": "string",
+              "value": "={{ $('Parse Apify Result').item.json.transcriptSource }}"
+            },
+            {
+              "id": "s4",
+              "name": "Chunk Count",
+              "type": "number",
+              "value": "={{ $('Chunk Transcript').all().length }}"
+            },
+            {
+              "id": "s5",
+              "name": "Process Date",
+              "type": "string",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "id": "s6",
+              "name": "Error Message",
+              "type": "string",
+              "value": ""
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "79a6a9da-f6af-49bf-9fd3-1f3ff18549a6",
+      "name": "Build Success Status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2080,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo",
+          "mode": "list",
+          "cachedResultName": "PP_0507_youtube_knowledge_base",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 28530458,
+          "mode": "list",
+          "cachedResultName": "youtube_knowledge_base.csv",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo/edit#gid=28530458"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Video ID": "={{ $json['Video ID'] }}",
+            "Transcript Status": "={{ $json['Transcript Status'] }}",
+            "Transcript Source": "={{ $json['Transcript Source'] }}",
+            "Chunk Count": "={{ $json['Chunk Count'] }}",
+            "Error Message": "={{ $json['Error Message'] }}",
+            "Process Date": "={{ $json['Process Date'] }}",
+            "Transcript": "={{ $('Clean Transcript').item.json.cleanedFullText }}",
+            "Video URL": "={{ $('Extract Video ID').item.json['Video URL'] }}",
+            "Video Title": "={{ $('Parse Apify Result').item.json.metadata.title }}"
+          },
+          "matchingColumns": [
+            "Video URL"
+          ],
+          "schema": [
+            {
+              "id": "Video URL",
+              "displayName": "Video URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Video Title",
+              "displayName": "Video Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Transcript Status",
+              "displayName": "Transcript Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Transcript",
+              "displayName": "Transcript",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Process Date",
+              "displayName": "Process Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Video ID",
+              "displayName": "Video ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Transcript Source",
+              "displayName": "Transcript Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Chunk Count",
+              "displayName": "Chunk Count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Error Message",
+              "displayName": "Error Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "144cff23-3ebb-48ce-889d-2d2b74e5c1d7",
+      "name": "Update Sheet - Success",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2272,
+        256
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "24d910ce-07a7-43f4-8c73-5a3ecec59436",
+      "name": "Process Each Video",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        432,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1",
+              "name": "Video ID",
+              "type": "string",
+              "value": "={{ $(\"Extract Video ID\").item.json.videoId }}"
+            },
+            {
+              "id": "f2",
+              "name": "Transcript Status",
+              "type": "string",
+              "value": "Failed: No transcript available"
+            },
+            {
+              "id": "f3",
+              "name": "Error Message",
+              "type": "string",
+              "value": "timedtext, scrape and Apify fallback all returned empty"
+            },
+            {
+              "id": "f4",
+              "name": "Process Date",
+              "type": "string",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "6c7fb07d-8a6c-4d5a-a44e-38c6fc5fa025",
+      "name": "Build Failure Status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1008,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo",
+          "mode": "list",
+          "cachedResultName": "PP_0507_youtube_knowledge_base",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 28530458,
+          "mode": "list",
+          "cachedResultName": "youtube_knowledge_base.csv",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo/edit#gid=28530458"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Video ID": "={{ json['Video ID'] }}",
+            "Video URL": "={{ $('Read Pending Videos').item.json['Video URL'] }}",
+            "Transcript Status": "={{ $json['Transcript Status'] }}",
+            "Error Message": "={{ $json['Error Message'] }}",
+            "Process Date": "={{ $json['Process Date'] }}"
+          },
+          "matchingColumns": [
+            "Video URL"
+          ],
+          "schema": [
+            {
+              "id": "Video URL",
+              "displayName": "Video URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Video Title",
+              "displayName": "Video Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Transcript Status",
+              "displayName": "Transcript Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Transcript",
+              "displayName": "Transcript",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Process Date",
+              "displayName": "Process Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Video ID",
+              "displayName": "Video ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Transcript Source",
+              "displayName": "Transcript Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Chunk Count",
+              "displayName": "Chunk Count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Error Message",
+              "displayName": "Error Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "b4512988-c89e-42a8-92f7-7dfcc53eb251",
+      "name": "Update Sheet - Failure",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1456,
+        688
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/actor-tasks/pankaj.prasad~youtube-transcript-ai-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"enableAiFallback\": false,\n  \"startUrls\": [\n    {\n      \"url\": \"{{$json.videoUrl}}\"\n    }\n  ],\n  \"wordLevel\": false\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 300000
+        }
+      },
+      "id": "98b7bb46-7f5e-4d56-8381-74c76b7e268b",
+      "name": "Apify - Run Transcript Actor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1344,
+        0
+      ],
+      "alwaysOutputData": false,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CXZQInkPWMtOZzgP",
+          "name": "PP_Apify_080726"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst results = [];\nfor (const item of $input.all()) {\n  const data = item.json;\n  const first = Array.isArray(data) ? data[0] : data['0'] || data;\nconst transcriptRaw =\n    first?.transcript_text ??\n    first?.transcript_llm ??\n    first?.transcript ??\n    first?.captions ??\n    \"\";\n  const isWhisper = !!(first && (first.type === 'whisper' || first.aiFallbackUsed));\n  results.push({\n    json: {\n      ...item.json,\n      transcriptRaw,\n      transcriptFormat: 'plain',\n      transcriptSource: isWhisper ? 'apify-whisper' : 'apify-caption'\n    }\n  });\n}\nreturn results;\n"
+      },
+      "id": "9087477f-8c2a-405d-8521-69689e24638f",
+      "name": "Parse Apify Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        320
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        256,
+        336
+      ],
+      "id": "3b2e188f-8c78-4bfe-9af9-f167640306bb",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE videos\nSET\n    status = 'failed',\n    updated_at = NOW()\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{[$('Merge').item.json.id]}}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1456,
+        448
+      ],
+      "id": "67ae3413-42c3-4291-aa36-ac6e9916c878",
+      "name": "Update Status in Video Table",
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE videos\nSET\n    status = 'embedded',\n    updated_at = NOW()\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{[$('Chunk Transcript').first().json.videoRowId]}}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2480,
+        256
+      ],
+      "id": "e4f07389-4b36-4b10-9056-c6827eb88ce7",
+      "name": "Updated - Embedded status",
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Read Pending Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Pending Videos": {
+      "main": [
+        [
+          {
+            "node": "Process Each Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Video ID": {
+      "main": [
+        [
+          {
+            "node": "Fetch oEmbed Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch oEmbed Metadata": {
+      "main": [
+        [
+          {
+            "node": "Normalize Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Metadata": {
+      "main": [
+        [
+          {
+            "node": "Apify - Run Transcript Actor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Video Row": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Transcript Obtained?": {
+      "main": [
+        [
+          {
+            "node": "Clean Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Failure Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Transcript": {
+      "main": [
+        [
+          {
+            "node": "Chunk Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk Transcript": {
+      "main": [
+        [
+          {
+            "node": "Generate Chunk Embedding (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Chunk Embedding (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Insert Chunk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Chunk": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Chunk Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Chunk Results": {
+      "main": [
+        [
+          {
+            "node": "Build Success Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Success Status": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sheet - Success": {
+      "main": [
+        [
+          {
+            "node": "Updated - Embedded status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Each Video": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Extract Video ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Failure Status": {
+      "main": [
+        [
+          {
+            "node": "Update Status in Video Table",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Sheet - Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify - Run Transcript Actor": {
+      "main": [
+        [
+          {
+            "node": "Parse Apify Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Apify Result": {
+      "main": [
+        [
+          {
+            "node": "Upsert Video Row",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Transcript Obtained?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status in Video Table": {
+      "main": [
+        [
+          {
+            "node": "Process Each Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Updated - Embedded status": {
+      "main": [
+        [
+          {
+            "node": "Process Each Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "kMXNNpS64WCuqRaz",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "0c2cf32b-a500-43f2-8bdb-edfc40eeb0e2",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "e99e0d1157c9445a053edb1d8bcb3c19869f806f2b50808813faa4f314de9dd4"
+  },
+  "id": "E4ImPRkx3PTSv1FD",
+  "tags": []
+}

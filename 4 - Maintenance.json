@@ -1,0 +1,532 @@
+{
+  "name": "4 - Maintenance",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 3
+            }
+          ]
+        }
+      },
+      "id": "e1b031cd-18ae-4f34-8d66-5d55bfd005d2",
+      "name": "Daily at 3 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo",
+          "mode": "list",
+          "cachedResultName": "PP_0507_youtube_knowledge_base",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 28530458,
+          "mode": "list",
+          "cachedResultName": "youtube_knowledge_base.csv",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo/edit#gid=28530458"
+        },
+        "options": {}
+      },
+      "id": "ce74db48-b3e9-4336-a96a-3d792fa59f9f",
+      "name": "Find Failed Rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        272,
+        -608
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json[\"Transcript Status\"] }}",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              },
+              "rightValue": "Failed"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bb20be18-d0eb-4b68-9a7a-4829a9461403",
+      "name": "Only Failed, Under Retry Limit",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        528,
+        -608
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "Transcript Status",
+              "type": "string",
+              "value": "Pending"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "f47300c7-a057-4970-a434-213381f70328",
+      "name": "Reset Status To Pending",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        784,
+        -608
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_GOOGLE_SHEET_ID"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Video Queue"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null,
+          "matchingColumns": [
+            "Video ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "cc244776-9542-4676-90d1-67b53ee219b7",
+      "name": "Write Retry Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1040,
+        -608
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select video_id from videos where status = 'embedded' and updated_at < now() - interval '90 days';",
+        "options": {}
+      },
+      "id": "7cc957c8-e006-4947-953d-014eb15d85dc",
+      "name": "Find Stale Videos (90+ days)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        272,
+        -384
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "sv1",
+              "name": "Video ID",
+              "type": "string",
+              "value": "={{ $json.video_id }}"
+            },
+            {
+              "id": "sv2",
+              "name": "Transcript Status",
+              "type": "string",
+              "value": "Pending"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "19987888-0e5c-43f4-8724-26d6f30b758f",
+      "name": "Flag For Reprocessing",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        528,
+        -384
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "YOUR_GOOGLE_SHEET_ID"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Video Queue"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null,
+          "matchingColumns": [
+            "Video ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "a12c4911-a019-4656-9d10-2de3113c045b",
+      "name": "Write Stale Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        784,
+        -384
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select c.id, c.content from chunks c join videos v on v.id = c.video_id where v.transcript_source = 'apify-whisper' and c.created_at < now() - interval '30 days' limit 200;",
+        "options": {}
+      },
+      "id": "de468e18-7bfe-40d2-9119-b96f273ba8ca",
+      "name": "Find Whisper-Sourced Chunks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        272,
+        -160
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": \"models/text-embedding-004\", \"content\": { \"parts\": [ { \"text\": $json.content } ] } } }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1200
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "id": "709ddd21-a2f8-437d-a138-043e9f7d4dd1",
+      "name": "Re-Embed Chunk (Gemini)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        528,
+        -160
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "eqTFnTopqFTeoGDe",
+          "name": "PP_Gemini_0807"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update chunks set embedding = $2::vector where id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ $(\"Find Whisper-Sourced Chunks\").item.json.id }},{{ \"[\" + $json.embedding.values.join(\",\") + \"]\" }}"
+        }
+      },
+      "id": "a6bc1891-4a57-472c-b44e-750902e790e2",
+      "name": "Update Chunk Embedding",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        784,
+        -160
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "delete from chunks a using chunks b where a.id > b.id and a.video_id = b.video_id and a.chunk_index = b.chunk_index;",
+        "options": {}
+      },
+      "id": "dd533a8b-899b-4b1f-add8-db8260da235d",
+      "name": "Remove Duplicate Chunks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        272,
+        64
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "delete from chunks where video_id not in (select id from videos);",
+        "options": {}
+      },
+      "id": "f8cf7709-1810-4f9e-b041-c653cb9a7510",
+      "name": "Clean Orphan Chunks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        272,
+        288
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update videos set status = 'failed' where status = 'fetching' and updated_at < now() - interval '2 hours';",
+        "options": {}
+      },
+      "id": "c5cacc44-0ff5-403a-a0b1-e9d720f2f33f",
+      "name": "Clean Videos Stuck Fetching",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        528,
+        288
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily at 3 AM": {
+      "main": [
+        [
+          {
+            "node": "Find Failed Rows",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Find Stale Videos (90+ days)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Find Whisper-Sourced Chunks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remove Duplicate Chunks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Clean Orphan Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Failed Rows": {
+      "main": [
+        [
+          {
+            "node": "Only Failed, Under Retry Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only Failed, Under Retry Limit": {
+      "main": [
+        [
+          {
+            "node": "Reset Status To Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset Status To Pending": {
+      "main": [
+        [
+          {
+            "node": "Write Retry Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Stale Videos (90+ days)": {
+      "main": [
+        [
+          {
+            "node": "Flag For Reprocessing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flag For Reprocessing": {
+      "main": [
+        [
+          {
+            "node": "Write Stale Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Whisper-Sourced Chunks": {
+      "main": [
+        [
+          {
+            "node": "Re-Embed Chunk (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-Embed Chunk (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Update Chunk Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Orphan Chunks": {
+      "main": [
+        [
+          {
+            "node": "Clean Videos Stuck Fetching",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "kMXNNpS64WCuqRaz",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "0d150866-2dcf-4b18-a8a5-51d6d4a5e804",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "e99e0d1157c9445a053edb1d8bcb3c19869f806f2b50808813faa4f314de9dd4"
+  },
+  "id": "z9jtkpBY89j9QtGP",
+  "tags": []
+}
