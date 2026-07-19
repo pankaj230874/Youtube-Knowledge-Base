@@ -1,0 +1,153 @@
+{
+  "name": "2 - Knowledge Retrieval",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "question"
+            },
+            {
+              "name": "videoIdFilter"
+            },
+            {
+              "name": "matchCount",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "3d336fb4-19de-454e-8cb2-8a433a6b71bd",
+      "name": "When Called by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n     \"model\": \"models/gemini-embedding-001\",\n     \"content\": { \"parts\": [ { \"text\": \"{{ $json.question }}\" } ] },\n     \"outputDimensionality\": 768\n   }",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "66031539-6721-4d61-96fc-bfb293e8a856",
+      "name": "Embed Question (Gemini)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        272,
+        0
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "eqTFnTopqFTeoGDe",
+          "name": "PP_Gemini_0807"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select c.id, c.video_id, v.title, v.channel_name, c.content, c.start_seconds,\n          (1 - (c.embedding <=> $1::vector)) as similarity\n   from chunks c join videos v on v.id = c.video_id\n   order by c.embedding <=> $1::vector\n   limit $2;",
+        "options": {
+          "queryReplacement": "={{ [\n  \"[\" + $json.embedding.values.join(\",\") + \"]\",\n  $('When Called by Another Workflow').first().json.matchCount || 5\n] }}"
+        }
+      },
+      "id": "63e9b077-3be9-42e7-bf55-7641cf7adc7c",
+      "name": "Search Supabase (match_chunks)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        528,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const question = $('When Called by Another Workflow').first().json.question;\nconst rows = $input.all().map(i => i.json);\n\nconst chunks = rows.map(r => ({\n  videoId: r.video_id,\n  videoTitle: r.title,\n  channelName: r.channel_name,\n  content: r.content,\n  startSeconds: r.start_seconds,\n  similarity: r.similarity,\n  youtubeDeepLink: 'https://youtube.com/watch?v=' + r.video_id + '&t=' + Math.floor(r.start_seconds || 0) + 's'\n}));\n\nconst contextText = chunks\n  .map(c => '[Video: \"' + c.videoTitle + '\" @ ' + Math.floor(c.startSeconds || 0) + 's]\\n' + c.content)\n  .join('\\n\\n---\\n\\n');\n\nreturn [{ json: { question, chunks, contextText } }];"
+      },
+      "id": "1a0aab98-8f9c-4f77-aae2-6d4639a7867f",
+      "name": "Format Ranked Chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Called by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Embed Question (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed Question (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Search Supabase (match_chunks)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Supabase (match_chunks)": {
+      "main": [
+        [
+          {
+            "node": "Format Ranked Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "97c7383a-26ea-48e5-bc13-6be51f435105",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "e99e0d1157c9445a053edb1d8bcb3c19869f806f2b50808813faa4f314de9dd4"
+  },
+  "id": "0u1a55ytc4ZdO96D",
+  "tags": []
+}

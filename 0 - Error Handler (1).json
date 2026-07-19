@@ -1,0 +1,90 @@
+{
+  "name": "0 - Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "48e7bc07-0fb7-456a-9baa-e5210627e41d",
+      "name": "On Any Workflow Error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "kb-alerts"
+        },
+        "text": "={{ \":rotating_light: *\" + $json.workflow.name + \"* failed.\\nError: \" + $json.trigger.error.message + \"\\nExecution: \" + $json.execution.url }}",
+        "otherOptions": {}
+      },
+      "id": "544ff386-f07d-40d2-bd4e-c67aef382e1e",
+      "name": "Notify Slack #kb-alerts",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        400,
+        -144
+      ],
+      "webhookId": "896ea7d7-af07-44d5-810d-1b471eac94e1",
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "prasad_pankaj@hotmail.com",
+        "subject": "={{ \"Workflow Failed: \" + $json.workflow.name }}",
+        "message": "={{ \"Workflow: \" + $json.workflow.name + \"\\n\\nError: \" + $json.execution.error.message + \"\\n\\nExecution: \" + $json.execution.url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        160
+      ],
+      "id": "43b8e4ea-34c5-45d7-822f-289231727e90",
+      "name": "Send a message",
+      "webhookId": "e20ae3c3-5d74-40e0-a90f-a01a3b015e45",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Jy8rJs1QmjkUe1M6",
+          "name": "PP_Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On Any Workflow Error": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "c92e6274-bba5-4b93-b0f2-9acb58b39593",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "e99e0d1157c9445a053edb1d8bcb3c19869f806f2b50808813faa4f314de9dd4"
+  },
+  "id": "kMXNNpS64WCuqRaz",
+  "tags": []
+}

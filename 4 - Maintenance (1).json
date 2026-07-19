@@ -1,0 +1,675 @@
+{
+  "name": "4 - Maintenance",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 3
+            }
+          ]
+        }
+      },
+      "id": "44e40663-2dcb-476b-8cf7-89c3ce53b64c",
+      "name": "Daily at 3 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo",
+          "mode": "list",
+          "cachedResultName": "PP_0507_youtube_knowledge_base"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 28530458,
+          "mode": "list",
+          "cachedResultName": "youtube_knowledge_base.csv"
+        },
+        "options": {}
+      },
+      "id": "0b8b67cc-cfdf-4506-9d61-7fe44aeb051d",
+      "name": "Find Failed Rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        272,
+        -608
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json[\"Transcript Status\"] }}",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              },
+              "rightValue": "Failed"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "730970f8-e3ae-4f91-9670-790a815053c4",
+      "name": "Only Failed, Under Retry Limit",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        528,
+        -608
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "Transcript Status",
+              "type": "string",
+              "value": "Pending"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "df3754f2-aa3a-4b6d-a6e4-db00e9cc8a63",
+      "name": "Reset Status To Pending",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        784,
+        -608
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo",
+          "mode": "list",
+          "cachedResultName": "PP_0507_youtube_knowledge_base"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 28530458,
+          "mode": "list",
+          "cachedResultName": "youtube_knowledge_base.csv"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Video URL": "={{ $json['Video URL'] }}",
+            "Video ID": "={{ $json['Video ID'] }}",
+            "Transcript Status": "={{ $json['Transcript Status'] }}"
+          },
+          "matchingColumns": [
+            "Video URL"
+          ],
+          "schema": [
+            {
+              "id": "Video URL",
+              "displayName": "Video URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Video Title",
+              "displayName": "Video Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Transcript Status",
+              "displayName": "Transcript Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Transcript",
+              "displayName": "Transcript",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Process Date",
+              "displayName": "Process Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Video ID",
+              "displayName": "Video ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Transcript Source",
+              "displayName": "Transcript Source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Chunk Count",
+              "displayName": "Chunk Count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Error Message",
+              "displayName": "Error Message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "ed08b9d2-f644-41b9-99b6-b83d13412399",
+      "name": "Write Retry Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1040,
+        -608
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select video_id, url as video_url from videos where status = 'embedded' and updated_at < now() - interval '90 days';",
+        "options": {}
+      },
+      "id": "5cbc7f49-33fa-43e3-977e-95624b6f091f",
+      "name": "Find Stale Videos (90+ days)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        272,
+        -384
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE videos SET status = 'pending', updated_at = NOW() WHERE video_id = $1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.video_id ] }}"
+        }
+      },
+      "id": "8079a581-3bde-4619-9135-f848139bd187",
+      "name": "Reset Stale Video Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        544,
+        -384
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "sv1",
+              "name": "Video ID",
+              "type": "string",
+              "value": "={{ $('Find Stale Videos (90+ days)').item.json.video_id }}"
+            },
+            {
+              "id": "sv2",
+              "name": "Video URL",
+              "type": "string",
+              "value": "={{ $('Find Stale Videos (90+ days)').item.json.video_url }}"
+            },
+            {
+              "id": "sv3",
+              "name": "Transcript Status",
+              "type": "string",
+              "value": "Pending"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "9b84c7bd-c4b2-4b4f-b52b-f71f17c85aaf",
+      "name": "Flag For Reprocessing",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        752,
+        -384
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo",
+          "mode": "list",
+          "cachedResultName": "PP_0507_youtube_knowledge_base"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 28530458,
+          "mode": "list",
+          "cachedResultName": "youtube_knowledge_base.csv"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Video URL": "={{ $json['Video URL'] }}",
+            "Video ID": "={{ $json['Video ID'] }}",
+            "Transcript Status": "={{ $json['Transcript Status'] }}"
+          },
+          "matchingColumns": [
+            "Video URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "edc16450-4d2f-48d3-90a2-7765fb000716",
+      "name": "Write Stale Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1072,
+        -384
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select c.id, c.content from chunks c join videos v on v.id = c.video_id where v.transcript_source = 'apify-whisper' and c.created_at < now() - interval '30 days' limit 200;",
+        "options": {}
+      },
+      "id": "9df1028a-a626-49b3-9a60-e1764dcc5f4a",
+      "name": "Find Whisper-Sourced Chunks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        272,
+        -160
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"models/gemini-embedding-001\",\n  \"content\": { \"parts\": [ { \"text\": \"{{ $json.content }}\" } ] },\n  \"outputDimensionality\": 768\n}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1200
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "id": "4fa34013-5188-4ba0-a259-3c61767fc7c2",
+      "name": "Re-Embed Chunk (Gemini)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        528,
+        -160
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "eqTFnTopqFTeoGDe",
+          "name": "PP_Gemini_0807"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update chunks set embedding = $2::vector where id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ [\n  $(\"Find Whisper-Sourced Chunks\").item.json.id,\n  \"[\" + $json.embedding.values.join(\",\") + \"]\"\n] }}"
+        }
+      },
+      "id": "7dc786ee-f2ca-4e80-8d17-7cb2e89f27ef",
+      "name": "Update Chunk Embedding",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        784,
+        -160
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "delete from chunks a using chunks b where a.id > b.id and a.video_id = b.video_id and a.chunk_index = b.chunk_index;",
+        "options": {}
+      },
+      "id": "657ad97e-f9d5-41f3-98cf-3de68e1ddf08",
+      "name": "Remove Duplicate Chunks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        272,
+        64
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "delete from chunks where video_id not in (select id from videos);",
+        "options": {}
+      },
+      "id": "d71ab58e-e76b-45b8-a294-bbb2dd726591",
+      "name": "Clean Orphan Chunks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        272,
+        288
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update videos set status = 'failed' where status = 'processing' and updated_at < now() - interval '2 hours';",
+        "options": {}
+      },
+      "id": "00c85a37-2335-457d-b2fa-f5b84762abea",
+      "name": "Clean Videos Stuck Fetching",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        528,
+        288
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily at 3 AM": {
+      "main": [
+        [
+          {
+            "node": "Find Failed Rows",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Find Stale Videos (90+ days)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Find Whisper-Sourced Chunks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Remove Duplicate Chunks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Clean Orphan Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Failed Rows": {
+      "main": [
+        [
+          {
+            "node": "Only Failed, Under Retry Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only Failed, Under Retry Limit": {
+      "main": [
+        [
+          {
+            "node": "Reset Status To Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset Status To Pending": {
+      "main": [
+        [
+          {
+            "node": "Write Retry Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Stale Videos (90+ days)": {
+      "main": [
+        [
+          {
+            "node": "Reset Stale Video Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset Stale Video Status": {
+      "main": [
+        [
+          {
+            "node": "Flag For Reprocessing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flag For Reprocessing": {
+      "main": [
+        [
+          {
+            "node": "Write Stale Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Whisper-Sourced Chunks": {
+      "main": [
+        [
+          {
+            "node": "Re-Embed Chunk (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-Embed Chunk (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Update Chunk Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Orphan Chunks": {
+      "main": [
+        [
+          {
+            "node": "Clean Videos Stuck Fetching",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "kMXNNpS64WCuqRaz",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "3e0acd93-2c42-4222-892d-5a394c66cde0",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "e99e0d1157c9445a053edb1d8bcb3c19869f806f2b50808813faa4f314de9dd4"
+  },
+  "id": "z9jtkpBY89j9QtGP",
+  "tags": []
+}

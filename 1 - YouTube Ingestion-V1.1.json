@@ -1,0 +1,1436 @@
+{
+  "name": "1 - YouTube Ingestion-V1.1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "05e829a7-ee38-45db-9593-2a7b867f7959",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1520,
+        -1680
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo",
+          "mode": "list",
+          "cachedResultName": "PP_0507_youtube_knowledge_base",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 28530458,
+          "mode": "list",
+          "cachedResultName": "youtube_knowledge_base.csv",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo/edit#gid=28530458"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Transcript Status",
+              "lookupValue": "Pending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "acac1134-5221-44f0-bcf4-0ccc36c4436c",
+      "name": "Read Pending Videos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1328,
+        -1680
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "videoId",
+              "type": "string",
+              "value": "={{ ($json[\"Video URL\"].match(/(?:v=|youtu\\.be\\/|shorts\\/)([a-zA-Z0-9_-]{11})(?![a-zA-Z0-9_-])/) || [])[1] || \"\" }}"
+            },
+            {
+              "id": "a2",
+              "name": "videoUrl",
+              "type": "string",
+              "value": "={{ $json[\"Video URL\"] }}"
+            },
+            {
+              "id": "a3",
+              "name": "priority",
+              "type": "string",
+              "value": "={{ $json[\"Priority\"] || \"3\" }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "e858855b-09fc-411b-8193-d8f932d95512",
+      "name": "Extract Video ID",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2688,
+        -1152
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.videoId }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "64a9d93a-ed78-4720-ac98-1aa054314e78",
+      "name": "Valid Video ID?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2528,
+        -1152
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO videos (video_id, url, status, created_at, updated_at)\nVALUES ($1, $2, 'processing', NOW(), NOW())\nON CONFLICT (video_id) DO UPDATE\n  SET status = 'processing', updated_at = NOW()\n  WHERE videos.status IN ('pending', 'failed')\nRETURNING id, video_id, status;",
+        "options": {
+          "queryReplacement": "={{ [ $json.videoId, $json.videoUrl ] }}"
+        }
+      },
+      "id": "c1826b12-8e8e-4228-a2b5-d3cf76cb9f89",
+      "name": "Claim Video for Processing",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2288,
+        -1216
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id ? \"claimed\" : \"skip\" }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "claimed"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5cc551d9-8f23-4efb-967e-0d38050ef773",
+      "name": "Was Claimed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2112,
+        -1216
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v={{ $(\"Extract Video ID\").item.json.videoId }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "826aed59-d778-4a37-9780-4c5dfd347f21",
+      "name": "Fetch oEmbed Metadata",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1872,
+        -1344
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "m1",
+              "name": "videoTitle",
+              "type": "string",
+              "value": "={{ $json.title || \"Untitled Video\" }}"
+            },
+            {
+              "id": "m2",
+              "name": "channelName",
+              "type": "string",
+              "value": "={{ $json.author_name || \"Unknown Channel\" }}"
+            },
+            {
+              "id": "m3",
+              "name": "videoId",
+              "type": "string",
+              "value": "={{ $(\"Extract Video ID\").item.json.videoId }}"
+            },
+            {
+              "id": "m4",
+              "name": "videoUrl",
+              "type": "string",
+              "value": "={{ $(\"Extract Video ID\").item.json.videoUrl }}"
+            },
+            {
+              "id": "m5",
+              "name": "claimedId",
+              "type": "string",
+              "value": "={{ $(\"Claim Video for Processing\").item.json.id }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "3acd915d-9968-433a-a2a8-50790ee74b0e",
+      "name": "Normalize Metadata",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1648,
+        -1344
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.youtube.com/api/timedtext?lang=en&v={{ $(\"Extract Video ID\").item.json.videoId }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 8000
+        }
+      },
+      "id": "9d788a13-cfca-4a28-b070-e762291a6e36",
+      "name": "Fetch Timedtext Captions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1440,
+        -1344
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function stripXmlTimedtext(xml) {\n  const cues = [];\n  const re = /<text start=\"([\\d.]+)\" dur=\"([\\d.]+)\"[^>]*>([\\s\\S]*?)<\\/text>/g;\n  let m;\n  while ((m = re.exec(xml)) !== null) {\n    const start = parseFloat(m[1]);\n    const dur = parseFloat(m[2]);\n    const text = m[3]\n      .replace(/&amp;/g, \"&\")\n      .replace(/&#39;/g, \"'\")\n      .replace(/&quot;/g, '\"')\n      .replace(/<[^>]+>/g, \"\")\n      .trim();\n    if (text) cues.push({ start, end: start + dur, text });\n  }\n  return cues;\n}\n\nconst nm = $('Normalize Metadata').item.json;\nconst raw = $input.item.json;\nconst xmlText = (typeof raw === 'string') ? raw : (raw.data ?? raw.body ?? '');\nconst cues = stripXmlTimedtext(xmlText || '');\nconst cleanedFullText = cues.map(c => c.text).join(' ').replace(/\\s+/g, ' ').trim();\n\nreturn [{\n  json: {\n    hasCaptions: cues.length > 0,\n    transcriptRaw: cleanedFullText,\n    transcriptFormat: 'plain',\n    transcriptSource: 'timedtext',\n    transcript_json: cues,\n    metadata: {\n      id: nm.videoId,\n      title: nm.videoTitle,\n      channel: nm.channelName,\n      url: nm.videoUrl,\n      duration: null\n    }\n  }\n}];"
+      },
+      "id": "f4b041c9-3189-446f-9f2f-1b7ebb7c643c",
+      "name": "Parse Timedtext Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1232,
+        -1344
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasCaptions }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0c0d65e0-6852-4ec7-af8f-7ef34cc3834d",
+      "name": "Timedtext Has Captions?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1232,
+        -1024
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.transcriptRaw }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "rightValue": ""
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6d909d68-9b47-4c9a-98cb-82bf7866b445",
+      "name": "Transcript Obtained?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -688,
+        -1232
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function stripXmlTimedtext(xml) {\n    const cues = [];\n    const re = /<text start=\"([\\d.]+)\" dur=\"([\\d.]+)\"[^>]*>([\\s\\S]*?)<\\/text>/g;\n    let m;\n    while ((m = re.exec(xml)) !== null) {\n        const start = parseFloat(m[1]);\n        const dur = parseFloat(m[2]);\n        const text = m[3]\n            .replace(/&amp;/g, \"&\")\n            .replace(/&#39;/g, \"'\")\n            .replace(/&quot;/g, '\"')\n            .replace(/<[^>]+>/g, \"\")\n            .trim();\n        if (text) {\n            cues.push({ start, end: start + dur, text });\n        }\n    }\n    return cues;\n}\n\nconst output = [];\n\nfor (const item of $input.all()) {\n    const json = item.json;\n    const metadata = json.metadata ?? {};\n    let cues = [];\n    if (Array.isArray(metadata.transcript_json) && metadata.transcript_json.length) {\n        cues = metadata.transcript_json;\n    } else if (Array.isArray(json.transcript_json) && json.transcript_json.length) {\n        cues = json.transcript_json;\n    } else {\n        const transcript =\n            metadata.transcriptRaw ??\n            metadata.transcript_text ??\n            metadata.transcript_llm ??\n            json.transcriptRaw ??\n            json.transcript_text ??\n            json.transcript_llm ??\n            \"\";\n        const format = metadata.transcriptFormat ?? json.transcriptFormat ?? \"\";\n        if (format === \"xml\") {\n            cues = stripXmlTimedtext(transcript);\n        } else {\n            cues = [{ start: 0, end: 0, text: transcript }];\n        }\n    }\n    const cleanedFullText = cues.map(c => c.text).join(\" \").replace(/\\s+/g, \" \").trim();\n    output.push({ json: { ...json, metadata, cues, cleanedFullText } });\n}\n\nreturn output;"
+      },
+      "id": "888412b8-3692-481c-a633-b2074cf0adfb",
+      "name": "Clean Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        -1328
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const TARGET_TOKENS = 500;\nconst OVERLAP_RATIO = 0.15;\nconst WORDS_PER_TOKEN = 0.75;\n\nfunction wordsToTokens(words) { return Math.round(words.length / WORDS_PER_TOKEN); }\n\nconst out = [];\nfor (const item of $input.all()) {\n  const json = item.json;\n  const cues = json.cues || [];\n  const words = json.cleanedFullText.split(/\\s+/).filter(Boolean);\n  if (words.length === 0) continue;\n\n  const targetWords = Math.round(TARGET_TOKENS * WORDS_PER_TOKEN);\n  const overlapWords = Math.round(targetWords * OVERLAP_RATIO);\n  const step = Math.max(1, targetWords - overlapWords);\n\n  const wordTimes = [];\n  for (const cue of cues) {\n    const cueWords = cue.text.split(/\\s+/).filter(Boolean);\n    for (let i = 0; i < cueWords.length; i++) {\n      const frac = cueWords.length > 1 ? i / (cueWords.length - 1) : 0;\n      wordTimes.push(cue.start + frac * (cue.end - cue.start));\n    }\n  }\n\n  let chunkIndex = 0;\n  for (let i = 0; i < words.length; i += step) {\n    const slice = words.slice(i, i + targetWords);\n    if (slice.length < 20 && chunkIndex > 0) break;\n    const content = slice.join(' ');\n    const startSeconds = wordTimes[i] ?? 0;\n    const endIdx = Math.min(i + slice.length - 1, wordTimes.length - 1);\n    const endSeconds = wordTimes[endIdx] ?? startSeconds;\n    out.push({\n      json: {\n        videoRowId: $('Claim Video for Processing').item.json.id,\n        videoId: json.metadata.id,\n        chunkIndex: chunkIndex,\n        content,\n        startSeconds,\n        endSeconds,\n        tokenCount: wordsToTokens(slice),\n        transcriptSource: json.transcriptSource\n      }\n    });\n    chunkIndex++;\n    if (i + targetWords >= words.length) break;\n  }\n}\nreturn out;"
+      },
+      "id": "26ff7667-f943-4dad-a0d3-0ba8fa4f01f7",
+      "name": "Chunk Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        -1328
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"models/gemini-embedding-001\",\n  \"content\": {\n    \"parts\": [\n      {\n        \"text\": \"{{ $json.content }}\"\n      }\n    ]\n  },\n  \"outputDimensionality\": 768\n}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1200
+            }
+          },
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "id": "30840dc1-c6bb-410c-b11e-c60fd5516338",
+      "name": "Generate Chunk Embedding (Gemini)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -80,
+        -1328
+      ],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "eqTFnTopqFTeoGDe",
+          "name": "PP_Gemini_0807"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into chunks (video_id, chunk_index, content, start_seconds, end_seconds, token_count, embedding) values ($1, $2, $3, $4, $5, $6, $7::vector) on conflict (video_id, chunk_index) do nothing returning id, chunk_index;",
+        "options": {
+          "queryBatching": "single",
+          "queryReplacement": "={{\n[\n  $(\"Chunk Transcript\").item.json.videoRowId,\n  $(\"Chunk Transcript\").item.json.chunkIndex,\n  $(\"Chunk Transcript\").item.json.content,\n  $(\"Chunk Transcript\").item.json.startSeconds,\n  $(\"Chunk Transcript\").item.json.endSeconds,\n  $(\"Chunk Transcript\").item.json.tokenCount,\n  \"[\" + $json.embedding.values.join(\",\") + \"]\"\n]\n}}"
+        }
+      },
+      "id": "fa5ee5c7-c4c5-4185-b5a7-582d8aa3377b",
+      "name": "Insert Chunk",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        128,
+        -1328
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "insertedChunks",
+        "options": {}
+      },
+      "id": "49ff7bba-908b-44c7-be28-e8e06b8a6ff7",
+      "name": "Aggregate Chunk Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        304,
+        -1328
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const attempted = $('Chunk Transcript').all().length;\nconst first = $input.first().json;\nconst insertedItems = first.insertedChunks || [];\nconst inserted = Array.isArray(insertedItems) ? insertedItems.length : 0;\nconst isPartial = inserted < attempted;\nreturn [{\n  json: {\n    ...first,\n    chunkCountAttempted: attempted,\n    chunkCountInserted: inserted,\n    isPartialEmbedding: isPartial,\n    reconciledStatus: isPartial ? ('Partially Embedded (' + inserted + '/' + attempted + ')') : 'Embedded'\n  }\n}];"
+      },
+      "id": "613308b7-f748-4389-9a40-50b4a967237c",
+      "name": "Reconcile Chunk Counts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        -896
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s1",
+              "name": "Video ID",
+              "type": "string",
+              "value": "={{ $('Extract Video ID').item.json.videoId }}"
+            },
+            {
+              "id": "s2",
+              "name": "Transcript Status",
+              "type": "string",
+              "value": "={{ $json.reconciledStatus }}"
+            },
+            {
+              "id": "s3",
+              "name": "Transcript Source",
+              "type": "string",
+              "value": "={{ $('Chunk Transcript').first().json.transcriptSource }}"
+            },
+            {
+              "id": "s4",
+              "name": "Chunk Count",
+              "type": "number",
+              "value": "={{ $json.chunkCountInserted }}"
+            },
+            {
+              "id": "s4b",
+              "name": "Chunk Count Attempted",
+              "type": "number",
+              "value": "={{ $json.chunkCountAttempted }}"
+            },
+            {
+              "id": "s5",
+              "name": "Process Date",
+              "type": "string",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "id": "s6",
+              "name": "Error Message",
+              "type": "string",
+              "value": ""
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "39cec418-be15-408d-be25-5191698005d8",
+      "name": "Build Success Status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        352,
+        -896
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE videos SET title = $2, channel_name = $3, duration_seconds = $4, transcript_source = $5, status = $6, updated_at = NOW() WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [\n  $(\"Claim Video for Processing\").item.json.id,\n  $(\"Clean Transcript\").first().json.metadata?.title || \"Untitled Video\",\n  $(\"Clean Transcript\").first().json.metadata?.channel || \"Unknown Channel\",\n  $(\"Clean Transcript\").first().json.metadata?.duration || null,\n  $(\"Chunk Transcript\").first().json.transcriptSource,\n  $json.isPartialEmbedding ? \"partially_embedded\" : \"embedded\"\n] }}"
+        }
+      },
+      "id": "8ad97fa3-7ace-4ca1-96c4-b7dac800bab2",
+      "name": "Update Video Row - Success",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        528,
+        -896
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo",
+          "mode": "list",
+          "cachedResultName": "PP_0507_youtube_knowledge_base"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 28530458,
+          "mode": "list",
+          "cachedResultName": "youtube_knowledge_base.csv"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Video ID": "={{ $('Build Success Status').item.json['Video ID'] }}",
+            "Transcript Status": "={{ $('Build Success Status').item.json['Transcript Status'] }}",
+            "Transcript Source": "={{ $('Build Success Status').item.json['Transcript Source'] }}",
+            "Chunk Count": "={{ $('Build Success Status').item.json['Chunk Count'] }}",
+            "Error Message": "={{ $('Build Success Status').item.json['Error Message'] }}",
+            "Process Date": "={{ $('Build Success Status').item.json['Process Date'] }}",
+            "Transcript": "={{ $('Clean Transcript').first().json.cleanedFullText }}",
+            "Video URL": "={{ $('Extract Video ID').item.json['Video URL'] }}",
+            "Video Title": "={{ $('Clean Transcript').first().json.metadata?.title }}"
+          },
+          "matchingColumns": [
+            "Video URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "0e469d53-107f-4cdc-b75b-fbf37f75076e",
+      "name": "Update Sheet - Success",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        336,
+        -608
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "28bb0cca-99c3-4565-9bab-1441b1e37b31",
+      "name": "Process Each Video",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -2752,
+        -1472
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1",
+              "name": "Video ID",
+              "type": "string",
+              "value": "={{ $('Extract Video ID').item.json.videoId }}"
+            },
+            {
+              "id": "f2",
+              "name": "Transcript Status",
+              "type": "string",
+              "value": "Failed: No transcript available"
+            },
+            {
+              "id": "f3",
+              "name": "Error Message",
+              "type": "string",
+              "value": "Both timedtext and Apify returned no transcript for this video"
+            },
+            {
+              "id": "f4",
+              "name": "Process Date",
+              "type": "string",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "d68debb3-adf3-4533-be35-e7ab052ff6ce",
+      "name": "Build Failure Status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -400,
+        -912
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE videos SET status = 'failed', updated_at = NOW() WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ [ $(\"Claim Video for Processing\").item.json.id ] }}"
+        }
+      },
+      "id": "293554b0-84ae-4d1e-b1b5-a377fbd7db52",
+      "name": "Update Video Row - Failed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -176,
+        -912
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo",
+          "mode": "list",
+          "cachedResultName": "PP_0507_youtube_knowledge_base"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 28530458,
+          "mode": "list",
+          "cachedResultName": "youtube_knowledge_base.csv"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Video URL": "={{ $('Extract Video ID').item.json['Video URL'] }}",
+            "Video ID": "={{ $('Build Failure Status').item.json['Video ID'] }}",
+            "Transcript Status": "={{ $('Build Failure Status').item.json['Transcript Status'] }}",
+            "Error Message": "={{ $('Build Failure Status').item.json['Error Message'] }}",
+            "Process Date": "={{ $('Build Failure Status').item.json['Process Date'] }}"
+          },
+          "matchingColumns": [
+            "Video URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "76fcddda-e5cf-47e3-bb95-cd85417a4b8a",
+      "name": "Update Sheet - Failure",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        -704
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/actor-tasks/pankaj.prasad~youtube-transcript-ai-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"enableAiFallback\": false,\n  \"startUrls\": [\n    {\n      \"url\": \"{{ $(\"Normalize Metadata\").item.json.videoUrl }}\"\n    }\n  ],\n  \"wordLevel\": false\n}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 300000
+        }
+      },
+      "id": "a0126e3e-8f1d-4072-980a-a98f04fe8e1c",
+      "name": "Apify - Run Transcript Actor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -976,
+        -912
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CXZQInkPWMtOZzgP",
+          "name": "PP_Apify_080726"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\nfor (const item of $input.all()) {\n  const data = item.json;\n  const first = Array.isArray(data) ? data[0] : data['0'] || data;\n  const transcriptRaw =\n    first?.transcript_text ??\n    first?.transcript_llm ??\n    first?.transcript ??\n    first?.captions ??\n    \"\";\n  const isWhisper = !!(first && (first.type === 'whisper' || first.aiFallbackUsed));\n  results.push({\n    json: {\n      ...item.json,\n      transcriptRaw,\n      transcriptFormat: 'plain',\n      transcriptSource: isWhisper ? 'apify-whisper' : 'apify-caption'\n    }\n  });\n}\nreturn results;"
+      },
+      "id": "83a5b8ce-f7f9-4332-b575-8300cfdaf79b",
+      "name": "Parse Apify Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        -912
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  v.title,\n  v.transcript_source,\n  COUNT(c.id) AS chunk_count,\n  STRING_AGG(c.content, ' ' ORDER BY c.chunk_index) AS full_transcript\nFROM videos v\nLEFT JOIN chunks c ON c.video_id = v.id\nWHERE v.video_id = $1\nGROUP BY v.id, v.title, v.transcript_source;",
+        "options": {
+          "queryReplacement": "={{ [ $('Extract Video ID').item.json.videoId ] }}"
+        }
+      },
+      "id": "8344770c-21d8-4857-b1bb-499c5f7715c7",
+      "name": "Lookup Existing Video Data",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1728,
+        -832
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "ReeZoQ2TPIxzNzmS",
+          "name": "PP_Postgres account 18"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "sk1",
+              "name": "Video ID",
+              "type": "string",
+              "value": "={{ $('Extract Video ID').item.json.videoId }}"
+            },
+            {
+              "id": "sk2",
+              "name": "Transcript Status",
+              "type": "string",
+              "value": "Skipped: already processed or in progress"
+            },
+            {
+              "id": "sk3",
+              "name": "Error Message",
+              "type": "string",
+              "value": ""
+            },
+            {
+              "id": "sk4",
+              "name": "Process Date",
+              "type": "string",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "id": "sk5",
+              "name": "Video Title",
+              "type": "string",
+              "value": "={{ $json.title || \"\" }}"
+            },
+            {
+              "id": "sk6",
+              "name": "Transcript Source",
+              "type": "string",
+              "value": "={{ $json.transcript_source || \"\" }}"
+            },
+            {
+              "id": "sk7",
+              "name": "Chunk Count",
+              "type": "number",
+              "value": "={{ $json.chunk_count || 0 }}"
+            },
+            {
+              "id": "sk8",
+              "name": "Transcript",
+              "type": "string",
+              "value": "={{ $json.full_transcript || \"\" }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "3afbb885-7b39-40a1-a47f-b7d490f8d071",
+      "name": "Build Skip Status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1504,
+        -832
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo",
+          "mode": "list",
+          "cachedResultName": "PP_0507_youtube_knowledge_base"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 28530458,
+          "mode": "list",
+          "cachedResultName": "youtube_knowledge_base.csv"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Video URL": "={{ $('Extract Video ID').item.json['Video URL'] }}",
+            "Video ID": "={{ $json['Video ID'] }}",
+            "Transcript Status": "={{ $json['Transcript Status'] }}",
+            "Process Date": "={{ $json['Process Date'] }}",
+            "Video Title": "={{ $json['Video Title'] }}",
+            "Transcript Source": "={{ $json['Transcript Source'] }}",
+            "Chunk Count": "={{ $json['Chunk Count'] }}",
+            "Transcript": "={{ $json['Transcript'] }}"
+          },
+          "matchingColumns": [
+            "Video URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "8db18ca5-370a-4b9a-98ea-867c29829678",
+      "name": "Update Sheet - Skip",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1280,
+        -752
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "iv1",
+              "name": "Video ID",
+              "type": "string",
+              "value": "={{ $json.videoId }}"
+            },
+            {
+              "id": "iv2",
+              "name": "Transcript Status",
+              "type": "string",
+              "value": "Failed: Invalid or unsupported URL"
+            },
+            {
+              "id": "iv3",
+              "name": "Error Message",
+              "type": "string",
+              "value": "Could not extract a valid YouTube video ID from the URL"
+            },
+            {
+              "id": "iv4",
+              "name": "Process Date",
+              "type": "string",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "7e11bb45-b999-4cec-8424-4d3d47a43c63",
+      "name": "Build Invalid URL Status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2320,
+        -992
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "12XiCJzYibJWzt1mWv6cdnj9KpTC0o942WlKUcYh7yRo",
+          "mode": "list",
+          "cachedResultName": "PP_0507_youtube_knowledge_base"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 28530458,
+          "mode": "list",
+          "cachedResultName": "youtube_knowledge_base.csv"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Video URL": "={{ $('Extract Video ID').item.json['Video URL'] }}",
+            "Video ID": "={{ $json['Video ID'] }}",
+            "Transcript Status": "={{ $json['Transcript Status'] }}",
+            "Error Message": "={{ $json['Error Message'] }}",
+            "Process Date": "={{ $json['Process Date'] }}"
+          },
+          "matchingColumns": [
+            "Video URL"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "925dd5cb-1295-479f-ba24-7921b1065046",
+      "name": "Update Sheet - Invalid URL",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -2096,
+        -992
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6t0KpTOQsaPzUr6V",
+          "name": "PP_GoogleSheets_04Jul"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "## 1 - YouTube Ingestion-V1.1\n****  [()]",
+        "height": 1568,
+        "width": 3504,
+        "color": "#F0F9E1"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -2816,
+        -1696
+      ],
+      "typeVersion": 1,
+      "id": "858506a9-d9e3-457e-88d3-b3b8529e51d3",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Read Pending Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Pending Videos": {
+      "main": [
+        [
+          {
+            "node": "Process Each Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Video ID": {
+      "main": [
+        [
+          {
+            "node": "Valid Video ID?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Video ID?": {
+      "main": [
+        [
+          {
+            "node": "Claim Video for Processing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Invalid URL Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Video for Processing": {
+      "main": [
+        [
+          {
+            "node": "Was Claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Was Claimed?": {
+      "main": [
+        [
+          {
+            "node": "Fetch oEmbed Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lookup Existing Video Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch oEmbed Metadata": {
+      "main": [
+        [
+          {
+            "node": "Normalize Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Metadata": {
+      "main": [
+        [
+          {
+            "node": "Fetch Timedtext Captions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Timedtext Captions": {
+      "main": [
+        [
+          {
+            "node": "Parse Timedtext Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Timedtext Result": {
+      "main": [
+        [
+          {
+            "node": "Timedtext Has Captions?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Timedtext Has Captions?": {
+      "main": [
+        [
+          {
+            "node": "Transcript Obtained?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apify - Run Transcript Actor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcript Obtained?": {
+      "main": [
+        [
+          {
+            "node": "Clean Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Failure Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Transcript": {
+      "main": [
+        [
+          {
+            "node": "Chunk Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk Transcript": {
+      "main": [
+        [
+          {
+            "node": "Generate Chunk Embedding (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Chunk Embedding (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Insert Chunk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Chunk": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Chunk Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Chunk Results": {
+      "main": [
+        [
+          {
+            "node": "Reconcile Chunk Counts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconcile Chunk Counts": {
+      "main": [
+        [
+          {
+            "node": "Build Success Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Success Status": {
+      "main": [
+        [
+          {
+            "node": "Update Video Row - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Video Row - Success": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sheet - Success": {
+      "main": [
+        [
+          {
+            "node": "Process Each Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Each Video": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Extract Video ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Failure Status": {
+      "main": [
+        [
+          {
+            "node": "Update Video Row - Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Video Row - Failed": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet - Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sheet - Failure": {
+      "main": [
+        [
+          {
+            "node": "Process Each Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify - Run Transcript Actor": {
+      "main": [
+        [
+          {
+            "node": "Parse Apify Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Apify Result": {
+      "main": [
+        [
+          {
+            "node": "Transcript Obtained?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Existing Video Data": {
+      "main": [
+        [
+          {
+            "node": "Build Skip Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Skip Status": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet - Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sheet - Skip": {
+      "main": [
+        [
+          {
+            "node": "Process Each Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Invalid URL Status": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet - Invalid URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sheet - Invalid URL": {
+      "main": [
+        [
+          {
+            "node": "Process Each Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "kMXNNpS64WCuqRaz",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "446cd655-7380-42fe-9c7b-5df9aa52049a",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "e99e0d1157c9445a053edb1d8bcb3c19869f806f2b50808813faa4f314de9dd4"
+  },
+  "id": "u8IYP0JJIUZ6jBqf",
+  "tags": []
+}
